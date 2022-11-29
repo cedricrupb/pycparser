@@ -1141,22 +1141,23 @@ class GNUAttribute(Node):
     attr_names = ()
 
 class GNUAttributed (Node):
-    __slots__ = ('args', 'attributes', 'coord', '__weakref__')
-    def __init__(self, args, attributes, coord=None):
-        self.args = args
+    __slots__ = ('decls', 'attributes', 'coord', '__weakref__')
+    def __init__(self, decls, attributes, coord=None):
+        self.decls = decls
         self.attributes = attributes
         self.coord = coord
 
     def children(self):
         nodelist = []
-        if self.args is not None: nodelist.append(("args", self.args))
+        for i, child in enumerate(self.decls or []):
+            nodelist.append(("decls[%d]" % i, child))
         for i, child in enumerate(self.attributes or []):
             nodelist.append(("attributes[%d]" % i, child))
         return tuple(nodelist)
 
     def __iter__(self):
-        if self.args is not None:
-            yield self.args
+        for child in (self.decls or []):
+            yield child
         for child in (self.attributes or []):
             yield child
 

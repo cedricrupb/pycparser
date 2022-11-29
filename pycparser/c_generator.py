@@ -358,7 +358,7 @@ class CGenerator(object):
     # GNU C stuff --------------------------------
 
     def visit_GNUAttributed(self, n):
-        s = " ".join(self.visit(decl) for decl in n.args)
+        s = " ".join(self.visit(decl) for decl in n.decls)
 
         for attribute in n.attributes:
             s += self.visit(attribute) + " "
