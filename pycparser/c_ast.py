@@ -1123,3 +1123,59 @@ class Pragma(Node):
 
     attr_names = ('string', )
 
+class GNUAttribute(Node):
+    __slots__ = ('args', 'coord', '__weakref__')
+    def __init__(self, args, coord=None):
+        self.args = args
+        self.coord = coord
+
+    def children(self):
+        nodelist = []
+        if self.args is not None: nodelist.append(("args", self.args))
+        return tuple(nodelist)
+
+    def __iter__(self):
+        if self.args is not None:
+            yield self.args
+
+    attr_names = ()
+
+class GNUAttributed (Node):
+    __slots__ = ('args', 'attributes', 'coord', '__weakref__')
+    def __init__(self, args, attributes, coord=None):
+        self.args = args
+        self.attributes = attributes
+        self.coord = coord
+
+    def children(self):
+        nodelist = []
+        if self.args is not None: nodelist.append(("args", self.args))
+        for i, child in enumerate(self.attributes or []):
+            nodelist.append(("attributes[%d]" % i, child))
+        return tuple(nodelist)
+
+    def __iter__(self):
+        if self.args is not None:
+            yield self.args
+        for child in (self.attributes or []):
+            yield child
+
+    attr_names = ()
+
+class GNUExtendedExpression(Node):
+    __slots__ = ('expr', 'coord', '__weakref__')
+    def __init__(self, expr, coord=None):
+        self.expr = expr
+        self.coord = coord
+
+    def children(self):
+        nodelist = []
+        if self.expr is not None: nodelist.append(("expr", self.expr))
+        return tuple(nodelist)
+
+    def __iter__(self):
+        if self.expr is not None:
+            yield self.expr
+
+    attr_names = ()
+

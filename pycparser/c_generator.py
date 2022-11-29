@@ -355,6 +355,29 @@ class CGenerator(object):
     def visit_PtrDecl(self, n):
         return self._generate_type(n, emit_declname=False)
 
+    # GNU C stuff --------------------------------
+
+    def visit_GNUAttributed(self, n):
+        s = " ".join(self.visit(decl) for decl in n.args)
+
+        for attribute in n.attributes:
+            s += self.visit(attribute) + " "
+
+        return s
+
+    def visit_GNUAttribute(self, n):
+        return "__attribute__((" + self.visit(n.args) + "))"
+
+    def visit_GNUExtendedExpression(self, n):
+        name = n.expr.__class__.__name__
+
+        if name == "ID": return "__extension__ " + self.visit(n.expr) 
+
+        return "__extension__(" + self.visit(n.expr) + ")"
+
+
+    # --------------------------------------------
+
     def _generate_struct_union_enum(self, n, name):
         """ Generates code for structs, unions, and enums. name should be
             'struct', 'union', or 'enum'.

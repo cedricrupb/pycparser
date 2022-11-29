@@ -757,10 +757,17 @@ class CParser(PLYParser):
     # the parser reduces decl_body, which actually adds the new
     # type into the table to be seen by the lexer before the next
     # line is reached.
-    def p_declaration(self, p):
+    def p_declaration_1(self, p):
         """ declaration : decl_body SEMI
         """
         p[0] = p[1]
+
+    def p_declaration_2(self, p):
+        """
+            declaration : decl_body gnu_attribute_list SEMI
+        """
+        p[0] = [c_ast.GNUAttributed(p[1], p[2])]
+
 
     # Since each declaration is a list of declarations, this
     # rule will combine all the declarations and return a single
@@ -1731,6 +1738,12 @@ class CParser(PLYParser):
             p[2] if len(p) == 3 else p[3],
             self._token_coord(p, 1))
 
+    
+    def p_unary_expression_4(self, p):
+        """ unary_expression  : _EXTENSION expression
+        """
+        p[0] = c_ast.GNUExtendedExpression(p[2])
+
     def p_unary_operator(self, p):
         """ unary_operator  : AND
                             | TIMES
@@ -1801,6 +1814,24 @@ class CParser(PLYParser):
         p[0] = c_ast.FuncCall(c_ast.ID(p[1], coord),
                               c_ast.ExprList([p[3], p[5]], coord),
                               coord)
+
+    def p_gnu_attribute(self, p):
+        """
+          gnu_attribute : _ATTRIBUTE LPAREN LPAREN argument_expression_list RPAREN RPAREN
+                        | _ATTRIBUTE LPAREN LPAREN RPAREN RPAREN
+        """
+        coord = self._token_coord(p, 4)
+        p[0] = c_ast.GNUAttribute(p[4], coord = coord)
+
+    def p_gnu_attribute_list(self, p):
+        """
+        gnu_attribute_list : gnu_attribute gnu_attribute_list
+                           | gnu_attribute
+        """
+        if len(p) > 2:
+            p[0] = [p[1]] + p[2]
+        else:
+            p[0] = [p[1]]
 
     def p_offsetof_member_designator(self, p):
         """ offsetof_member_designator : identifier

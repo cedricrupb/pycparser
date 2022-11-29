@@ -114,6 +114,10 @@ class CLexer(object):
         '_ATOMIC', '_ALIGNOF', '_ALIGNAS',
         )
 
+    gnu_keywords = (
+        "_ATTRIBUTE", "_EXTENSION"
+    )
+
     keyword_map = {}
 
     for keyword in keywords:
@@ -122,10 +126,13 @@ class CLexer(object):
     for keyword in keywords_new:
         keyword_map[keyword[:2].upper() + keyword[2:].lower()] = keyword
 
+    for keyword in gnu_keywords:
+        keyword_map["__" + keyword[1:].lower() + "__"] = keyword
+
     ##
     ## All the tokens recognized by the lexer
     ##
-    tokens = keywords + keywords_new + (
+    tokens = keywords + keywords_new + gnu_keywords + (
         # Identifiers
         'ID',
 
