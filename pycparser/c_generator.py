@@ -63,10 +63,10 @@ class CGenerator(object):
         return fref + '(' + self.visit(n.args) + ')'
 
     def visit_UnaryOp(self, n):
-        if n.op == 'sizeof':
+        if n.op in ('sizeof', "__alignof__", "__alignof"):
             # Always parenthesize the argument of sizeof since it can be
             # a name.
-            return 'sizeof(%s)' % self.visit(n.expr)
+            return '%s(%s)' % (n.op, self.visit(n.expr))
         else:
             operand = self._parenthesize_unless_simple(n.expr)
             if n.op == 'p++':
@@ -358,16 +358,9 @@ class CGenerator(object):
 
     # GNU C stuff --------------------------------
 
-    def visit_GNUAttributed(self, n):
-        s = " ".join(self.visit(decl) for decl in n.decls)
-
-        for attribute in n.attributes:
-            s += self.visit(attribute) + " "
-
-        return s
-
     def visit_GNUAttribute(self, n):
-        return "__attribute__((" + self.visit(n.args) + "))"
+        attrs = ", ".join(self.visit(a) for a in n.attrs)
+        return "__attribute__((" + attrs + "))"
 
     def visit_GNUExtendedExpression(self, n):
         name = n.expr.__class__.__name__
@@ -446,6 +439,7 @@ class CGenerator(object):
         s = ''
         if n.funcspec: s = ' '.join(n.funcspec) + ' '
         if n.storage: s += ' '.join(n.storage) + ' '
+        if n.attrs:   s += ' '.join([self.visit(a) for a in n.attrs]) + ' '
         if n.align: s += self.visit(n.align[0]) + ' '
         s += self._generate_type(n.type)
         return s
@@ -490,6 +484,7 @@ class CGenerator(object):
                     else:
                         nstr = '*' + nstr
             if nstr: s += ' ' + nstr
+            if n.attrs: s += " " + " ".join(self.visit(attr) for attr in n.attrs)
             return s
         elif typ == c_ast.Decl:
             return self._generate_decl(n.type)
@@ -497,7 +492,14 @@ class CGenerator(object):
             return self._generate_type(n.type, emit_declname = emit_declname)
         elif typ == c_ast.IdentifierType:
             return ' '.join(n.names) + ' '
-        elif typ in (c_ast.ArrayDecl, c_ast.PtrDecl, c_ast.FuncDecl):
+        elif typ == c_ast.FuncDecl:
+            result = self._generate_type(n.type, modifiers + [n],
+                                       emit_declname = emit_declname)
+            
+            if n.attrs: result += " " + " ".join(self.visit(attr) for attr in n.attrs)
+            return result
+
+        elif typ in (c_ast.ArrayDecl, c_ast.PtrDecl):
             return self._generate_type(n.type, modifiers + [n],
                                        emit_declname = emit_declname)
         else:

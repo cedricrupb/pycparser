@@ -142,7 +142,7 @@ class CParser(PLYParser):
         """
         self.clex.filename = filename
         self.clex.reset_lineno()
-        self._scope_stack = [dict()]
+        self._scope_stack = [self._init_scope()]
         self._last_yielded_token = None
         return self.cparser.parse(
                 input=text,
@@ -150,6 +150,11 @@ class CParser(PLYParser):
                 debug=debug)
 
     ######################--   PRIVATE   --######################
+
+    BUILTIN_TYPES = ["__builtin_va_list"]
+
+    def _init_scope(self):
+        return {builtin_type: True for builtin_type in self.BUILTIN_TYPES}
 
     def _push_scope(self):
         self._scope_stack.append(dict())
@@ -356,7 +361,7 @@ class CParser(PLYParser):
             Returns the declaration specifier, with the new
             specifier incorporated.
         """
-        spec = declspec or dict(qual=[], storage=[], type=[], function=[], alignment=[])
+        spec = declspec or dict(qual=[], storage=[], type=[], function=[], alignment=[], attrs=[])
 
         if append:
             spec[kind].append(newspec)
@@ -398,6 +403,7 @@ class CParser(PLYParser):
                 type=None,
                 quals=None,
                 align=spec['alignment'],
+                attrs=None,
                 coord=spec['type'][-1].coord)
             # Remove the "new" type's name from the end of spec['type']
             del spec['type'][-1]
@@ -430,6 +436,7 @@ class CParser(PLYParser):
                     align=spec['alignment'],
                     storage=spec['storage'],
                     funcspec=spec['function'],
+                    attrs=spec['attrs'],
                     type=decl['decl'],
                     init=decl.get('init'),
                     bitsize=decl.get('bitsize'),
@@ -719,6 +726,7 @@ class CParser(PLYParser):
                     align=spec['alignment'],
                     storage=spec['storage'],
                     funcspec=spec['function'],
+                    attrs=spec['attrs'],
                     type=ty[0],
                     init=None,
                     bitsize=None,
@@ -758,17 +766,10 @@ class CParser(PLYParser):
     # the parser reduces decl_body, which actually adds the new
     # type into the table to be seen by the lexer before the next
     # line is reached.
-    def p_declaration_1(self, p):
+    def p_declaration(self, p):
         """ declaration : decl_body SEMI
         """
         p[0] = p[1]
-
-    def p_declaration_2(self, p):
-        """
-            declaration : decl_body gnu_attribute_list SEMI
-        """
-        p[0] = [c_ast.GNUAttributed(p[1], p[2])]
-
 
     # Since each declaration is a list of declarations, this
     # rule will combine all the declarations and return a single
@@ -847,6 +848,11 @@ class CParser(PLYParser):
         """
         p[0] = self._add_declaration_specifier(p[1], p[2], 'alignment', append=True)
 
+    def p_declaration_specifiers_8(self, p):
+        """ declaration_specifiers  : declaration_specifiers_no_type gnu_attribute_specifier 
+        """
+        p[0] = self._add_declaration_specifier(p[1], p[2], 'attrs', append=True)
+
     def p_storage_class_specifier(self, p):
         """ storage_class_specifier : AUTO
                                     | REGISTER
@@ -877,6 +883,7 @@ class CParser(PLYParser):
                                       | SIGNED
                                       | UNSIGNED
                                       | __INT128
+                                      | __FLOAT128
         """
         p[0] = c_ast.IdentifierType([p[1]], coord=self._token_coord(p, 1))
 
@@ -952,12 +959,12 @@ class CParser(PLYParser):
     def p_specifier_qualifier_list_4(self, p):
         """ specifier_qualifier_list  : type_qualifier_list type_specifier
         """
-        p[0] = dict(qual=p[1], alignment=[], storage=[], type=[p[2]], function=[])
+        p[0] = dict(qual=p[1], alignment=[], storage=[], type=[p[2]], function=[], attrs=[])
 
     def p_specifier_qualifier_list_5(self, p):
         """ specifier_qualifier_list  : alignment_specifier
         """
-        p[0] = dict(qual=[], alignment=[p[1]], storage=[], type=[], function=[])
+        p[0] = dict(qual=[], alignment=[p[1]], storage=[], type=[], function=[], attrs=[])
 
     def p_specifier_qualifier_list_6(self, p):
         """ specifier_qualifier_list  : specifier_qualifier_list alignment_specifier
@@ -1107,7 +1114,7 @@ class CParser(PLYParser):
         if len(p) > 3:
             p[0] = {'decl': p[1], 'bitsize': p[3]}
         else:
-            p[0] = {'decl': c_ast.TypeDecl(None, None, None, None), 'bitsize': p[2]}
+            p[0] = {'decl': c_ast.TypeDecl(None, None, None, None, None), 'bitsize': p[2]}
 
     def p_enum_specifier_1(self, p):
         """ enum_specifier  : ENUM ID
@@ -1188,6 +1195,7 @@ class CParser(PLYParser):
             type=None,
             quals=None,
             align=None,
+            attrs=None,
             coord=self._token_coord(p, 1))
 
     @parameterized(('id', 'ID'), ('typeid', 'TYPEID'))
@@ -1250,9 +1258,11 @@ class CParser(PLYParser):
         """ direct_xxx_declarator   : direct_xxx_declarator LPAREN parameter_type_list RPAREN
                                     | direct_xxx_declarator LPAREN identifier_list_opt RPAREN
         """
+
         func = c_ast.FuncDecl(
             args=p[3],
             type=None,
+            attrs=None,
             coord=p[1].coord)
 
         # To see why _get_yacc_lookahead_token is needed, consider:
@@ -1273,6 +1283,15 @@ class CParser(PLYParser):
                     self._add_identifier(param.name, param.coord)
 
         p[0] = self._type_modify_decl(decl=p[1], modifier=func)
+    
+    @parameterized(('id', 'ID'), ('typeid', 'TYPEID'), ('typeid_noparen', 'TYPEID'))
+    def p_direct_xxx_declarator_7(self, p):
+        """ direct_xxx_declarator   : direct_xxx_declarator gnu_attribute_specifiers
+        """
+        if hasattr(p[1], "attrs"):
+            p[1].attrs = p[2]
+
+        p[0] = p[1]
 
     def p_pointer(self, p):
         """ pointer : TIMES type_qualifier_list_opt
@@ -1376,7 +1395,7 @@ class CParser(PLYParser):
                 name='',
                 quals=spec['qual'],
                 align=None,
-                type=p[2] or c_ast.TypeDecl(None, None, None, None),
+                type=p[2] or c_ast.TypeDecl(None, None, None, None, None),
                 coord=self._token_coord(p, 2))
             typename = spec['type']
             decl = self._fix_decl_name_type(decl, typename)
@@ -1446,7 +1465,7 @@ class CParser(PLYParser):
             name='',
             quals=p[1]['qual'][:],
             align=None,
-            type=p[2] or c_ast.TypeDecl(None, None, None, None),
+            type=p[2] or c_ast.TypeDecl(None, None, None, None, None),
             coord=self._token_coord(p, 2))
 
         p[0] = self._fix_decl_name_type(typename, p[1]['type'])
@@ -1454,7 +1473,7 @@ class CParser(PLYParser):
     def p_abstract_declarator_1(self, p):
         """ abstract_declarator     : pointer
         """
-        dummytype = c_ast.TypeDecl(None, None, None, None)
+        dummytype = c_ast.TypeDecl(None, None, None, None, None)
         p[0] = self._type_modify_decl(
             decl=dummytype,
             modifier=p[1])
@@ -1494,7 +1513,7 @@ class CParser(PLYParser):
         """
         quals = (p[2] if len(p) > 4 else []) or []
         p[0] = c_ast.ArrayDecl(
-            type=c_ast.TypeDecl(None, None, None, None),
+            type=c_ast.TypeDecl(None, None, None, None, None),
             dim=p[3] if len(p) > 4 else p[2],
             dim_quals=quals,
             coord=self._token_coord(p, 1))
@@ -1514,7 +1533,7 @@ class CParser(PLYParser):
         """ direct_abstract_declarator  : LBRACKET TIMES RBRACKET
         """
         p[0] = c_ast.ArrayDecl(
-            type=c_ast.TypeDecl(None, None, None, None),
+            type=c_ast.TypeDecl(None, None, None, None, None),
             dim=c_ast.ID(p[3], self._token_coord(p, 3)),
             dim_quals=[],
             coord=self._token_coord(p, 1))
@@ -1525,6 +1544,7 @@ class CParser(PLYParser):
         func = c_ast.FuncDecl(
             args=p[3],
             type=None,
+            attrs=None,
             coord=p[1].coord)
 
         p[0] = self._type_modify_decl(decl=p[1], modifier=func)
@@ -1534,7 +1554,8 @@ class CParser(PLYParser):
         """
         p[0] = c_ast.FuncDecl(
             args=p[2],
-            type=c_ast.TypeDecl(None, None, None, None),
+            type=c_ast.TypeDecl(None, None, None, None, None),
+            attrs=None,
             coord=self._token_coord(p, 1))
 
     # declaration is a list, statement isn't. To make it consistent, block_item
@@ -1823,23 +1844,54 @@ class CParser(PLYParser):
                               c_ast.ExprList([p[3], p[5]], coord),
                               coord)
 
-    def p_gnu_attribute(self, p):
-        """
-          gnu_attribute : _ATTRIBUTE LPAREN LPAREN argument_expression_list RPAREN RPAREN
-                        | _ATTRIBUTE LPAREN LPAREN RPAREN RPAREN
-        """
-        coord = self._token_coord(p, 4)
-        p[0] = c_ast.GNUAttribute(p[4], coord = coord)
+    # GNU Attribute --------------------------------
 
-    def p_gnu_attribute_list(self, p):
+    def p_gnu_attribute_specifiers(self, p):
         """
-        gnu_attribute_list : gnu_attribute gnu_attribute_list
-                           | gnu_attribute
+        gnu_attribute_specifiers : gnu_attribute_specifier gnu_attribute_specifiers
+                                 | gnu_attribute_specifier
         """
         if len(p) > 2:
             p[0] = [p[1]] + p[2]
         else:
             p[0] = [p[1]]
+
+    def p_gnu_attribute_specifier(self, p):
+        """
+          gnu_attribute_specifier : _ATTRIBUTE LPAREN LPAREN gnu_attribute_list RPAREN RPAREN
+                                  | _ATTRIBUTE LPAREN LPAREN RPAREN RPAREN
+        """
+        coord = self._token_coord(p, 4)
+        p[0] = c_ast.GNUAttribute(attrs = p[4], coord = coord)
+
+    def p_gnu_attribute_list(self, p):
+        """
+            gnu_attribute_list : gnu_attribute COMMA gnu_attribute_list
+                               | gnu_attribute
+        """
+        if len(p) > 2:
+            p[0] = [p[1]] + p[3]
+        else:
+            p[0] = [p[1]]
+        
+    def p_gnu_attribute_1(self, p):
+        """
+            gnu_attribute : identifier
+        """
+        p[0] = p[1]
+
+    def p_gnu_attribute_2(self, p):
+        """
+            gnu_attribute : ID LPAREN argument_expression_list RPAREN
+        """
+        coord = self._token_coord(p, 1)
+        p[0] = c_ast.FuncCall(c_ast.ID(p[1], coord),
+                              p[3],
+                              coord)
+
+
+    # -----------------------------------------------
+
 
     def p_offsetof_member_designator(self, p):
         """ offsetof_member_designator : identifier
