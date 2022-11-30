@@ -1010,11 +1010,12 @@ class TypeDecl(Node):
     attr_names = ('declname', 'quals', 'align', )
 
 class Typedef(Node):
-    __slots__ = ('name', 'quals', 'storage', 'type', 'coord', '__weakref__')
-    def __init__(self, name, quals, storage, type, coord=None):
+    __slots__ = ('name', 'quals', 'storage', 'funcspec', 'type', 'coord', '__weakref__')
+    def __init__(self, name, quals, storage, funcspec, type, coord=None):
         self.name = name
         self.quals = quals
         self.storage = storage
+        self.funcspec = funcspec
         self.type = type
         self.coord = coord
 
@@ -1027,7 +1028,7 @@ class Typedef(Node):
         if self.type is not None:
             yield self.type
 
-    attr_names = ('name', 'quals', 'storage', )
+    attr_names = ('name', 'quals', 'storage', 'funcspec', )
 
 class Typename(Node):
     __slots__ = ('name', 'quals', 'align', 'type', 'coord', '__weakref__')

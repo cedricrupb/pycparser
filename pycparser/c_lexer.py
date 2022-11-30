@@ -118,6 +118,15 @@ class CLexer(object):
         "_ATTRIBUTE", "_EXTENSION"
     )
 
+    gnu_synonyms = (
+        ("__inline", "INLINE"),
+        ("__inline__", "INLINE"),
+        ("__restrict", "RESTRICT"),
+        ("__const", "CONST"),
+        ("__signed__", "SIGNED"),
+    )
+
+
     keyword_map = {}
 
     for keyword in keywords:
@@ -128,6 +137,9 @@ class CLexer(object):
 
     for keyword in gnu_keywords:
         keyword_map["__" + keyword[1:].lower() + "__"] = keyword
+
+    for synonym_token, keyword in gnu_synonyms:
+        keyword_map[synonym_token] = keyword
 
     ##
     ## All the tokens recognized by the lexer

@@ -157,7 +157,8 @@ class CGenerator(object):
 
     def visit_Typedef(self, n):
         s = ''
-        if n.storage: s += ' '.join(n.storage) + ' '
+        if n.funcspec: s += ' '.join(n.funcspec) + ' '
+        if n.storage : s += ' '.join(n.storage) + ' '
         s += self._generate_type(n.type)
         return s
 

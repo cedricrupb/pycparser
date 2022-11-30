@@ -420,6 +420,7 @@ class CParser(PLYParser):
                     name=None,
                     quals=spec['qual'],
                     storage=spec['storage'],
+                    funcspec=spec['function'],
                     type=decl['decl'],
                     coord=decl['decl'].coord)
             else:
@@ -859,6 +860,7 @@ class CParser(PLYParser):
     def p_function_specifier(self, p):
         """ function_specifier  : INLINE
                                 | _NORETURN
+                                | _EXTENSION
         """
         p[0] = p[1]
 
@@ -961,6 +963,12 @@ class CParser(PLYParser):
         """ specifier_qualifier_list  : specifier_qualifier_list alignment_specifier
         """
         p[0] = self._add_declaration_specifier(p[1], p[2], 'alignment')
+
+
+    def p_specifier_qualifier_list_7(self, p):
+        """ specifier_qualifier_list  : _EXTENSION specifier_qualifier_list 
+        """
+        p[0] = self._add_declaration_specifier(p[2], p[1], 'function')
 
     # TYPEID is allowed here (and in other struct/enum related tag names), because
     # struct/enum tags reside in their own namespace and can be named the same as types
