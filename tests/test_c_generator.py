@@ -2,6 +2,8 @@ import os
 import sys
 import unittest
 
+import position_c_generator
+
 # Run from the root dir
 sys.path.insert(0, '.')
 
@@ -82,7 +84,11 @@ class TestCtoC(unittest.TestCase):
     def _run_c_to_c(self, src, *args, **kwargs):
         ast = parse_to_ast(src)
         generator = c_generator.CGenerator(*args, **kwargs)
-        return generator.visit(ast)
+        position_generator = position_c_generator.PositionCGenerator(*args, **kwargs)
+        src2 = generator.visit(ast)
+        src3, position = position_generator.generate(ast)
+        self.assertEqual(src2, src3)
+        return src2
 
     def _assert_ctoc_correct(self, src, *args, **kwargs):
         """ Checks that the c2c translation was correct by parsing the code
