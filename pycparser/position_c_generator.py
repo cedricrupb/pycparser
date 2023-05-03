@@ -619,16 +619,3 @@ class PositionCGenerator(object):
         return isinstance(n, (c_ast.Constant, c_ast.ID, c_ast.ArrayRef,
                               c_ast.StructRef, c_ast.FuncCall))
 
-
-# from pycparser import CParser
-# ast = CParser().parse('''
-# int main(int argc, char** argv){
-#     int i = 0;
-#     int * const * p_i = &i;
-#     int p_main(int argc, char** argv) = &main;
-#     return *i;
-# }
-# ''')
-# code, map = PositionCGenerator().generate(ast)
-# print(code)
-# pass
