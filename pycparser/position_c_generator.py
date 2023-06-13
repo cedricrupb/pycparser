@@ -309,7 +309,7 @@ class PositionCGenerator(object):
         c += list(')\n')
         self._generate_stmt(n.iftrue, c, m, add_indent=True)
         if n.iffalse:
-            self._make_indent()
+            self._make_indent(c)
             c += list('else\n')
             self._generate_stmt(n.iffalse, c, m, add_indent=True)
 
